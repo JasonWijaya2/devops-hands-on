@@ -1,0 +1,116 @@
+name: Production Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: |
+            server.js
+            sum.js
+            greeting.js
+            package*.json
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+
+      - name: Deploy to staging
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+
+          echo "==============================="
+          echo "  DEPLOYING TO STAGING"
+          echo "==============================="
+          echo "Version: $VERSION"
+          echo ""
+          echo "Files:"
+          ls -la
+          echo ""
+          echo "Deploy to staging: SUCCESS ✓"
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+
+      - name: Deploy to production
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "==============================="
+          echo " DEPLOYING TO PRODUCTION"
+          echo "==============================="
+          echo "Version: $VERSION"
+          echo ""
+          echo "Deploy to production: SUCCESS ✓"
